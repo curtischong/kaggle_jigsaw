@@ -1,3 +1,19 @@
+import random
+import os
+import numpy as np
+import pickle
+import time
+
+import torch
+from torch import nn
+from torch.utils import data
+from torch.nn import functional as F
+from sklearn.metrics import roc_auc_score
+
+# use to save the model metadata
+import json
+import datetime
+
 def seed_everything(seed=1234):
     random.seed(seed)
     os.environ['PYTHONHASHSEED'] = str(seed)
@@ -24,11 +40,12 @@ def build_matrix(word_index, path):
     return embedding_matrix, unknown_words
 
 class SequenceBucketCollator():
-    def __init__(self, choose_length, sequence_index, length_index, label_index=None):
+    def __init__(self, choose_length, maxlen, sequence_index, length_index, label_index=None):
         self.choose_length = choose_length
         self.sequence_index = sequence_index
         self.length_index = length_index
         self.label_index = label_index
+        self.maxlen = maxlen
         
     def __call__(self, batch):
         batch = [torch.stack(x) for x in list(zip(*batch))]
@@ -37,7 +54,7 @@ class SequenceBucketCollator():
         lengths = batch[self.length_index]
         
         length = self.choose_length(lengths)
-        mask = torch.arange(start=maxlen, end=0, step=-1) < length
+        mask = torch.arange(start=self.maxlen, end=0, step=-1) < length
         padded_sequences = sequences[:, mask]
         
         batch[self.sequence_index] = padded_sequences
@@ -50,7 +67,16 @@ class SequenceBucketCollator():
 def sigmoid(x):
     return 1 / (1 + np.exp(-x))
 
-def train_model(model, train, test, loss_fn, output_dim, lr=0.001,
+def make_weights_dir(model_dir):
+    try:
+        os.mkdir(model_dir)
+    except:
+        pass
+
+def get_coefs(word, *arr):
+    return word, np.asarray(arr, dtype='float32')
+
+"""def train_model(model, train, test, loss_fn, output_dim, lr=0.001,
                 batch_size=512, n_epochs=4, n_epochs_embed=2,
                 enable_checkpoint_ensemble=True, filepath):
     # not sure if we have to redefine this after every iteration
@@ -133,18 +159,7 @@ def train_model(model, train, test, loss_fn, output_dim, lr=0.001,
         elapsed_time = time.time() - start_time
         print('Epoch {}/{} \t loss={:.4f} \t time={:.2f}s'.format(
               epoch + 1, n_epochs, avg_loss, elapsed_time))
-    '''
-    if enable_checkpoint_ensemble:
-        #if our approach is an ensemble then we average it amongst all the historical predictions
-        test_preds = np.average(all_test_preds, weights=checkpoint_weights, axis=0)    
-    else:
-        #if our approach is not an ensemble then we just take the last set of predictions
-        test_preds = all_test_preds[-1]
-       
-    #TODO: impliment this and find a nice way to return the preds
-    return test_preds
-    '''
-    return model
+    return model"""
 
 def predict(model, test, output_dim, batch_size=512, pred_type="val"):
     #checkpoint = torch.load(filepath)
@@ -250,3 +265,26 @@ class JigsawEvaluator:
         overall_score = self.overall_model_weight * self._calculate_overall_auc(y_pred)
         bias_score = (1 - self.overall_model_weight) * bias_score
         return overall_score + bias_score
+
+def save_model_stats(model_notes,
+                     num_splits,
+                     dir_name,
+                     num_models,
+                     notebook_start_time,
+                     final_val,
+                     thresholds):
+    model_data = {
+        "model_notes": model_notes,
+        "num_folds": num_splits,
+        "models_per_fold": num_models,
+        "time_ran": str(datetime.datetime.now()),
+        "run_time": time.time() - notebook_start_time,
+        "final_val": final_val,
+        "thresholds": thresholds
+    }
+    with open(dir_name + "info.json", 'w') as outfile:
+        json.dump(model_data, outfile)
+        print("saved model to %s" % dir_name)
+        print(model_data)
+        return
+    print("Failed to save model")
