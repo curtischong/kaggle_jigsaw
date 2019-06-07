@@ -271,16 +271,14 @@ def save_model_stats(model_notes,
                      dir_name,
                      num_models,
                      notebook_start_time,
-                     final_val,
-                     thresholds):
+                     final_val):
     model_data = {
         "model_notes": model_notes,
         "num_folds": num_splits,
         "models_per_fold": num_models,
         "time_ran": str(datetime.datetime.now()),
         "run_time": time.time() - notebook_start_time,
-        "final_val": final_val,
-        "thresholds": thresholds
+        "final_val": final_val
     }
     with open(dir_name + "info.json", 'w') as outfile:
         json.dump(model_data, outfile)
