@@ -265,7 +265,7 @@ class JigsawEvaluator:
         overall_score = self.overall_model_weight * self._calculate_overall_auc(y_pred)
         bias_score = (1 - self.overall_model_weight) * bias_score
         return overall_score + bias_score
-
+    
 def save_model_stats(model_notes,
                      num_splits,
                      dir_name,
